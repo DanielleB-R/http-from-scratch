@@ -1,4 +1,4 @@
-use std::io::prelude::*;
+use std::io::{prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -7,9 +7,16 @@ mod request;
 static NOT_IMPLEMENTED: &str = "HTTP/1.1 501 Not Implemented\r\nConnection: close\r\n\r\n";
 
 fn respond(mut stream: TcpStream) {
-    let mut input = String::new();
-    stream.read_to_string(&mut input).unwrap();
-    let request_line = input.lines().next().unwrap();
+    let mut reader = BufReader::new(
+        stream
+            .try_clone()
+            .expect("Can't clone stream for buffered reading"),
+    );
+
+    let mut request_line = String::new();
+    reader
+        .read_line(&mut request_line)
+        .expect("Problem reading request");
     let request = match request::parse_request_line(&request_line) {
         Ok(r) => r,
         Err(_) => {
