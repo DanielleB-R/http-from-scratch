@@ -1,9 +1,7 @@
+use http::Method;
+use std::io::{prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
-use std::{
-    collections::HashMap,
-    io::{prelude::*, BufReader},
-};
 
 mod request;
 
@@ -21,20 +19,13 @@ fn respond(mut stream: TcpStream) {
     reader
         .read_line(&mut request_line)
         .expect("Problem reading request");
-    let request = match request::parse_request_line(&request_line) {
+    let mut request_builder = match request::parse_request_line(&request_line) {
         Ok(r) => r,
         Err(_) => {
             eprintln!("Error parsing request line");
             return;
         }
     };
-    println!("{:?}", request);
-    if request.method != "GET" && request.method != "HEAD" {
-        stream.write(NOT_IMPLEMENTED.as_bytes()).unwrap();
-        return;
-    }
-
-    let mut headers = HashMap::new();
 
     loop {
         let mut line = String::new();
@@ -47,13 +38,20 @@ fn respond(mut stream: TcpStream) {
         let mut pieces = line.splitn(2, ":");
         let name = pieces.next().unwrap();
         let value = pieces.next().unwrap().trim();
-        headers.insert(name.to_owned(), value.to_owned());
+        request_builder = request_builder.header(name, value);
     }
-    println!("Headers: {:?}", headers);
+    // Only handling empty requests for now;
+    let request = request_builder.body(()).unwrap();
+    println!("{:?}", request);
+
+    if request.method() != Method::GET && request.method() != Method::HEAD {
+        stream.write(NOT_IMPLEMENTED.as_bytes()).unwrap();
+        return;
+    }
 
     stream.write(HTTP_OK.as_bytes()).unwrap();
     stream.write(&[b'\r', b'\n']).unwrap();
-    stream.write(request.url.as_bytes()).unwrap();
+    stream.write(request.uri().path().as_bytes()).unwrap();
 }
 
 fn main() {
