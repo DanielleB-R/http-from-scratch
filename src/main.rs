@@ -1,10 +1,14 @@
-use std::io::{prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
+use std::{
+    collections::HashMap,
+    io::{prelude::*, BufReader},
+};
 
 mod request;
 
 static NOT_IMPLEMENTED: &str = "HTTP/1.1 501 Not Implemented\r\nConnection: close\r\n\r\n";
+static HTTP_OK: &str = "HTTP/1.1 200 OK\r\n";
 
 fn respond(mut stream: TcpStream) {
     let mut reader = BufReader::new(
@@ -30,6 +34,25 @@ fn respond(mut stream: TcpStream) {
         return;
     }
 
+    let mut headers = HashMap::new();
+
+    loop {
+        let mut line = String::new();
+
+        reader.read_line(&mut line).unwrap();
+        if line == "\r\n" {
+            break;
+        }
+
+        let mut pieces = line.splitn(2, ":");
+        let name = pieces.next().unwrap();
+        let value = pieces.next().unwrap().trim();
+        headers.insert(name.to_owned(), value.to_owned());
+    }
+    println!("Headers: {:?}", headers);
+
+    stream.write(HTTP_OK.as_bytes()).unwrap();
+    stream.write(&[b'\r', b'\n']).unwrap();
     stream.write(request.url.as_bytes()).unwrap();
 }
 
